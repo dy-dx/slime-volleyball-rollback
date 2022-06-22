@@ -1,0 +1,12 @@
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+.vscode
+
+/tmp
+/dist/*
+!/dist/.gitkeep
+
+/node_modules
