@@ -1,0 +1,41 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+iframe {
+  border: none;
+}
+iframe:first-child {
+  margin-right: 1px;
+}
+.iframe-container {
+  display: flex;
+  flex-wrap: wrap;
+  height: 100%;
+  overflow: hidden;
+}
+#main {
+  margin: 15px auto;
+  position: relative;
+  overflow: hidden;
+  font-family: monospace;
+}
+.entity {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  background-color: black;
+  box-sizing: border-box;
+  will-change: transform;
+}
+.ui-debug {
+  color: white;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.1;
+  overflow: hidden;
+  white-space: pre;
+  background-color: purple;
+}

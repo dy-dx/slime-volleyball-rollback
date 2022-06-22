@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DOM Fighter</title>
+    <link rel="stylesheet" href="../style.css" />
+  </head>
+  <body>
+    <div class="iframe-container"></div>
+    <script type="application/javascript">
+      const iframeContainer = document.querySelector('.iframe-container');
+
+      const createIframe = (src) => {
+        const frame = document.createElement('iframe');
+        frame.src = src;
+        iframeContainer.appendChild(frame);
+        frame.contentWindow.addEventListener('DOMContentLoaded', () => {
+          const { scrollWidth, scrollHeight } = frame.contentWindow.document.getElementById('main');
+          [frame.width, frame.height] = [scrollWidth, scrollHeight];
+        });
+        return frame;
+      };
+
+      const queryString = new URLSearchParams(window.location.search).toString();
+      const hostId = `df-p1-${Math.random().toString(36).substring(2, 9)}`;
+      const frame1 = createIframe(`../?id=${hostId}&${queryString}`);
+      const frame2 = createIframe(`../?peerid=${hostId}&${queryString}`);
+
+      // Pass key events to first iframe so I don't need to click on it every time.
+      // Also, pass arrow key events to p2 iframe so I can manipulate both clients.
+      const dispatchKeyEvent = (e) => {
+        if (e.key.startsWith('Arrow')) {
+          frame2?.contentDocument.dispatchEvent(new KeyboardEvent(e.type, e));
+        } else {
+          frame1.contentDocument.dispatchEvent(new KeyboardEvent(e.type, e));
+        }
+      };
+      document.addEventListener('keydown', dispatchKeyEvent);
+      document.addEventListener('keyup', dispatchKeyEvent);
+    </script>
+  </body>
+</html>
