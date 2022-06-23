@@ -92,6 +92,12 @@ export default class Network {
     }
     const { type, data }: { type: MessageType; data: any } = msg;
 
-    this.onMessageCallback(type, data);
+    try {
+      this.onMessageCallback(type, data);
+    } catch (e) {
+      this.peer?.disconnect();
+      this.connection?.close();
+      throw e;
+    }
   }
 }

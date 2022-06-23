@@ -43,18 +43,17 @@ export default class DebugRenderSystem implements ISystem {
   }
 
   public update(_entities: IEntity[], _dt: number): void {
-    const ballPos = this.game.getBall()?.positionComp;
     const networkInfo = this.game.networkSystem.debugInfo();
 
     const networkText = !networkInfo.isConnectionReady
       ? 'Waiting for connection'
-      : `delay: ${networkInfo.tickDelay} | ping: ${Math.ceil(networkInfo.roundtripLatency / 2)}ms`;
+      : `ping: ${Math.ceil(networkInfo.roundtripLatency / 2)}ms`;
 
     this.infoBox.element.textContent = [
       networkText,
+      `rollbackTicks: ${networkInfo.rollbackTicks}`,
       `update: ${this.game.approximateAvgUpdateMs.toFixed(1)}ms`,
       `render: ${this.game.approximateAvgRenderMs.toFixed(1)}ms`,
-      `ballPos: ${ballPos?.x},${ballPos?.y}`,
     ].join('\n');
   }
 

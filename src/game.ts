@@ -25,7 +25,8 @@ export default class Game {
   private simulationTick = 0;
   private updateTick = 0; // increases even when simulation is paused
   private isPaused = false;
-  private entities: IEntity[] = [];
+  // private entities: IEntity[] = [];
+  public entities: IEntity[] = [];
   private inputSystems: ISystem[];
   private simulationSystems: ISystem[];
   private renderSystems: ISystem[];
@@ -153,11 +154,20 @@ export default class Game {
     this.entities = entities;
   }
 
-  private tick(dt: number): void {
+  public tick(dt: number): void {
     this.simulationSystems.forEach((s) => {
       s.update(this.entities, dt);
     });
 
     this.simulationTick++;
+  }
+
+  public rollback(tick: number, entities: IEntity[]) {
+    this.loadState(entities);
+    if (this.simulationTick - tick > 20) {
+      throw new Error(`whoa rolling back way too many ticks ${this.simulationTick - tick}`);
+    }
+    // console.log(`rolling back ${this.simulationTick - tick} ticks`);
+    this.simulationTick = tick + 1;
   }
 }

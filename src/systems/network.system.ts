@@ -6,6 +6,8 @@ import ISystem from './system.js';
 
 /* eslint-disable no-console */
 
+const shallowCopy = <T>(o: T) => Object.assign({}, o);
+
 interface ICharacterEntity extends IEntity {
   characterStateComp: ICharacterStateComp;
   inputComp: ICharacterInputComp;
@@ -14,13 +16,19 @@ interface ICharacterEntity extends IEntity {
 interface IInputUpdate {
   inputComp: ICharacterInputComp;
   tick: number;
+  isSpeculative: boolean;
+}
+
+interface IState {
+  tick: number;
+  entities: IEntity[];
 }
 
 export interface INetworkSystemDebugInfo {
-  tickDelay: number;
   roundtripLatency: number;
   isConnectionReady: boolean;
   isSimulationReady: boolean;
+  rollbackTicks: number;
 }
 
 export default class NetworkSystem implements ISystem {
@@ -30,10 +38,12 @@ export default class NetworkSystem implements ISystem {
   private game: Game;
   private network: Network;
   // Network state that we don't care to put into an entity
-  private roundtripLatency: number;
-  private tickDelay: number;
-  private clientInputs: IInputUpdate[];
-  private remoteInputs: IInputUpdate[];
+  private roundtripLatency = -1;
+  private lastRecordedRollbackTicks = 0;
+  private clientInputs: IInputUpdate[] = [];
+  private remoteInputs: IInputUpdate[] = [];
+  private states: IState[] = [];
+  // private lastValidTick = -1;
 
   constructor(game: Game) {
     this.game = game;
@@ -45,20 +55,16 @@ export default class NetworkSystem implements ISystem {
       peerId: urlParams.get('peerid'),
       localPort: parseInt(urlParams.get('localport') || '', 10),
     });
-    this.roundtripLatency = -1;
-    this.tickDelay = 4;
-    this.clientInputs = [];
-    this.remoteInputs = [];
     // weird hack to make the game wait for "future" inputs
-    for (let i = 0; i < this.tickDelay; i++) {
-      const fakeInputComp: ICharacterInputComp = {
-        left: false,
-        up: false,
-        right: false,
-      };
-      this.clientInputs.push({ tick: i, inputComp: fakeInputComp });
-      this.remoteInputs.push({ tick: i, inputComp: fakeInputComp });
-    }
+    // for (let i = 0; i < this.tickDelay; i++) {
+    //   const fakeInputComp: ICharacterInputComp = {
+    //     left: false,
+    //     up: false,
+    //     right: false,
+    //   };
+    //   this.clientInputs.push({ tick: i, inputComp: fakeInputComp });
+    //   this.remoteInputs.push({ tick: i, inputComp: fakeInputComp });
+    // }
     this.isConnectionReady = false;
     // Initialize to true so the player can do stuff while waiting for a connection
     // (we reset the simulation when the connection begins)
@@ -69,8 +75,8 @@ export default class NetworkSystem implements ISystem {
     return {
       isSimulationReady: this.isSimulationReady,
       isConnectionReady: this.isConnectionReady,
-      tickDelay: this.tickDelay,
       roundtripLatency: this.roundtripLatency,
+      rollbackTicks: this.lastRecordedRollbackTicks,
     };
   }
 
@@ -83,13 +89,18 @@ export default class NetworkSystem implements ISystem {
 
     let clientCharacter: ICharacterEntity;
     let remoteCharacter: ICharacterEntity;
-    const simulationTick = this.game.getSimulationTick();
+    const currentTick = this.game.getSimulationTick();
     const updateTick = this.game.getUpdateTick();
-    const futureInputTick = simulationTick + this.tickDelay;
 
     if (updateTick % this.pingInterval === 0) {
       this.sendPing();
     }
+
+    const lastTickState = {
+      tick: currentTick - 1,
+      entities: this.game.getStateCopy(),
+    };
+    this.states.push(lastTickState);
 
     entities
       .filter((e): e is ICharacterEntity => !!e.characterStateComp)
@@ -107,6 +118,7 @@ export default class NetworkSystem implements ISystem {
         }
       });
 
+    /*
     while (this.remoteInputs.length) {
       const { inputComp: nextInput, tick } = this.remoteInputs[0];
 
@@ -142,6 +154,39 @@ export default class NetworkSystem implements ISystem {
     if (this.isSimulationReady && clientInput) {
       Object.assign(clientCharacter!.inputComp, clientInput.inputComp);
     }
+    */
+
+    let remoteInput = this.remoteInputs.find((input) => input.tick === currentTick);
+    if (remoteInput) {
+      // We already have the remote input for this tick. We must be running behind, in an example of "one-sided rollback."
+      // Oh well, sucks for the other player.
+    } else {
+      // console.log(`speculating remote input for tick ${simulationTick}`);
+      const speculativeRemoteInputComp: ICharacterInputComp = this.remoteInputs.length
+        ? shallowCopy(this.remoteInputs[this.remoteInputs.length - 1].inputComp)
+        : {
+            left: false,
+            up: false,
+            right: false,
+          };
+      remoteInput = {
+        inputComp: speculativeRemoteInputComp,
+        tick: currentTick,
+        isSpeculative: true,
+      };
+      this.remoteInputs.push(remoteInput);
+    }
+    Object.assign(remoteCharacter!.inputComp, remoteInput.inputComp);
+    this.isSimulationReady = true;
+
+    // need to not do this when stalled or paused
+    const clientInputComp = shallowCopy(clientCharacter!.inputComp);
+    this.clientInputs.push({
+      inputComp: clientInputComp,
+      tick: currentTick,
+      isSpeculative: false,
+    });
+    this.sendInput(clientInputComp, currentTick);
 
     if (!this.isSimulationReady) {
       console.warn('No remote input available, increase the frame delay');
@@ -174,7 +219,77 @@ export default class NetworkSystem implements ISystem {
   }
 
   private onInput(data: { inputComp: ICharacterInputComp; tick: number }): void {
-    this.remoteInputs.push(data);
+    if (!this.remoteInputs.length) {
+      if (data.tick === 0) {
+        // this is ok
+        this.remoteInputs.push({ ...data, isSpeculative: false });
+      } else {
+        console.log('uhhh oh no no no');
+      }
+      return;
+    }
+
+    // find and override the speculative input we created for the given tick
+    const existingSpeculativeInput = this.remoteInputs.find((input) => input.tick === data.tick);
+
+    if (!existingSpeculativeInput) {
+      const lastSpeculativeInput = this.remoteInputs[this.remoteInputs.length - 1];
+      if (lastSpeculativeInput.tick === data.tick - 1) {
+        // this is ok
+        this.remoteInputs.push({ ...data, isSpeculative: false });
+        this.lastRecordedRollbackTicks = 0;
+      } else {
+        console.log('uhhh oh no');
+      }
+      return;
+    }
+
+    existingSpeculativeInput.inputComp = data.inputComp;
+    existingSpeculativeInput.isSpeculative = false;
+
+    // roll back and roll forward if needed. assume, for now, that we won't get updates out-of-order.
+
+    // because onInput() happens outside of the update call, this getSimulationTick() actually refers to the upcoming tick.
+    const currentTick = this.game.getSimulationTick();
+
+    // 1. get the game state of the tick before the one we just received inputs for
+    const stateIndex = this.states.findIndex((s) => s.tick === data.tick - 1);
+    const state = this.states[stateIndex];
+    // clean up old states that we won't need anymore
+    this.states = this.states.slice(stateIndex);
+
+    // 2. loadState() and set this.game.simulationTick = data.tick + 1
+    if (state) {
+      this.game.rollback(state.tick, state.entities);
+      this.lastRecordedRollbackTicks = currentTick - data.tick;
+    } else {
+      throw new Error(`uh oh no state recorded for tick ${data.tick - 1}`);
+    }
+
+    // 3. this.game.tick() until this.game.simulationTick === currentTick
+    let clientCharacter: ICharacterEntity;
+    let remoteCharacter: ICharacterEntity;
+    this.game.entities
+      .filter((e): e is ICharacterEntity => !!e.characterStateComp)
+      .forEach((e: ICharacterEntity) => {
+        if (e.isControlledByClient) {
+          clientCharacter = e;
+        } else {
+          remoteCharacter = e;
+        }
+      });
+
+    while (this.game.getSimulationTick() < currentTick) {
+      const clientInputForTick = this.clientInputs.find(
+        (input) => input.tick === this.game.getSimulationTick(),
+      );
+      const remoteInputForTick = this.remoteInputs.find(
+        (input) => input.tick === this.game.getSimulationTick(),
+      );
+      Object.assign(clientCharacter!.inputComp, clientInputForTick!.inputComp);
+      Object.assign(remoteCharacter!.inputComp, remoteInputForTick!.inputComp);
+      this.game.tick(1);
+    }
   }
 
   private onPing(timestamp: number): void {
