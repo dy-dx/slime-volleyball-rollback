@@ -6,7 +6,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "$SCRIPT_DIR"
 
 git checkout gh-pages
-git rebase master
+git rebase spike-rollback
 
 rm -rf dist && mkdir dist
 tsc
