@@ -281,7 +281,7 @@ export default class NetworkSystem implements ISystem {
     const stateIndex = this.states.findIndex((s) => s.tick === data.tick - 1);
     const state = this.states[stateIndex];
     if (!state) {
-      throw new Error(`no state recorded for tick ${data.tick - 1}`);
+      throw new Error(`no state recorded for tick ${data.tick - 1}. currentTick is ${currentTick}`);
     }
     // clean up old states that we won't need anymore
     this.states = this.states.slice(stateIndex);

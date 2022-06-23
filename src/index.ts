@@ -5,9 +5,9 @@ if (!div) {
   throw new Error('#main element is not present.');
 }
 const game = new Game(div, 750, 375);
-const updateLoop = () => {
-  game.update(1);
-};
+// const simpleUpdateLoop = () => {
+//   game.update(1);
+// };
 
 let last = Date.now();
 const renderLoop = () => {
@@ -17,9 +17,36 @@ const renderLoop = () => {
   window.requestAnimationFrame(renderLoop);
 };
 
+const interval = 1000 / 60;
+let nextUpdate = 0;
+function updateLoop() {
+  const now = performance.now();
+
+  if (nextUpdate === 0) {
+    nextUpdate = now;
+  }
+
+  if (now >= nextUpdate) {
+    game.update(1);
+
+    nextUpdate += interval;
+
+    if (now >= nextUpdate) {
+      // we missed a tick, really bad
+      console.error('game update loop: missed a tick');
+      // nextUpdate = now + interval;
+      // nextUpdate = now + interval;
+    }
+  }
+
+  // Schedule next update right before we'd want
+  setTimeout(updateLoop, (nextUpdate - performance.now()) * 0.9);
+}
+
 const launch = (): void => {
   renderLoop();
-  setInterval(updateLoop, 1000 / 60);
+  // setInterval(simpleUpdateLoop, 1000 / 60);
+  updateLoop();
 };
 
 export default launch;
