@@ -24,11 +24,21 @@ export default class ScoreSystem implements ISystem {
     if (!level) {
       return;
     }
+
     const physicsEntities = entities.filter((e): e is IPhysicsEntity => !!e.physicsComp);
     const ball = physicsEntities.find((e) => e.isBall);
-    // Check for end of round
-    if (ball && ball.positionComp.y <= 0) {
-      if (ball.positionComp.x > 500) {
+
+    if (level.scoreComp.freezeTime === 0) {
+      // Check for end of round
+      if (ball && ball.positionComp.y <= 0) {
+        level.scoreComp.freezeTime = 30;
+      }
+      return;
+    }
+
+    level.scoreComp.freezeTime -= 1;
+    if (level.scoreComp.freezeTime <= 0) {
+      if (ball!.positionComp.x > 500) {
         level.scoreComp.p1Points += 1;
         this.game.initRound(CharacterSide.P1);
       } else {

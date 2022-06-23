@@ -2,6 +2,7 @@ export interface IScoreComp {
   p1Points: number;
   p2Points: number;
   maxPoints: number;
+  freezeTime: number;
 }
 
 export interface IAppearanceComp {

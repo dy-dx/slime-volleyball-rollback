@@ -16,6 +16,7 @@ export default class Level implements IEntity {
       p1Points: 0,
       p2Points: 0,
       maxPoints,
+      freezeTime: 0,
     };
   }
 }

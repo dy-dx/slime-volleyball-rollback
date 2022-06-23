@@ -51,7 +51,7 @@ export default class DebugRenderSystem implements ISystem {
 
     this.infoBox.element.textContent = [
       networkText,
-      `rollbackTicks: ${networkInfo.rollbackTicks}`,
+      `rollback: ${networkInfo.rollbackTicks} | ${networkInfo.rollbackMs.toFixed(1)}ms`,
       `update: ${this.game.approximateAvgUpdateMs.toFixed(1)}ms`,
       `render: ${this.game.approximateAvgRenderMs.toFixed(1)}ms`,
     ].join('\n');

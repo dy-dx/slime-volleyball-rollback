@@ -1,6 +1,10 @@
-import { IPhysicsComp, IPositionComp } from '../components.js';
+import { IScoreComp, IPhysicsComp, IPositionComp } from '../components.js';
 import { IEntity } from '../entities/entity.js';
 import ISystem from './system.js';
+
+interface IScoreEntity extends IEntity {
+  scoreComp: IScoreComp;
+}
 
 interface IPhysicsEntity extends IEntity {
   physicsComp: IPhysicsComp;
@@ -81,6 +85,11 @@ function updateBall(ball: IPhysicsEntity, physicsEntities: IPhysicsEntity[]) {
 
 export default class PhysicsSystem implements ISystem {
   public update(entities: IEntity[], dt: number): void {
+    const level = entities.find((e): e is IScoreEntity => !!e.scoreComp);
+    if (level && level.scoreComp.freezeTime > 0) {
+      return;
+    }
+
     const physicsEntities = entities.filter((e): e is IPhysicsEntity => !!e.physicsComp);
 
     physicsEntities.forEach((e) => {

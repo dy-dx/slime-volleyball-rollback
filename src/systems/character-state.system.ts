@@ -1,5 +1,6 @@
 import {
   CharacterState,
+  IScoreComp,
   ICharacterDefinitionComp,
   ICharacterStateComp,
   IInputComp,
@@ -8,6 +9,10 @@ import {
 } from '../components.js';
 import { IEntity } from '../entities/entity.js';
 import ISystem from './system.js';
+
+interface IScoreEntity extends IEntity {
+  scoreComp: IScoreComp;
+}
 
 interface ICharacterEntity extends IEntity {
   characterDefinitionComp: ICharacterDefinitionComp;
@@ -25,6 +30,10 @@ const enum Direction {
 }
 export default class CharacterStateSystem implements ISystem {
   public update(entities: IEntity[], _dt: number): void {
+    const level = entities.find((e): e is IScoreEntity => !!e.scoreComp);
+    if (level && level.scoreComp.freezeTime > 0) {
+      return;
+    }
     entities
       .filter((e): e is ICharacterEntity => !!e.characterStateComp)
       .forEach((e: ICharacterEntity) => {
