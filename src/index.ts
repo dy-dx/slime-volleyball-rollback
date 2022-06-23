@@ -33,9 +33,13 @@ function updateLoop() {
 
     if (now >= nextUpdate) {
       // we missed a tick, really bad
-      console.error('game update loop: missed a tick');
+      console.log('game update loop: missed a tick');
       // nextUpdate = now + interval;
-      // nextUpdate = now + interval;
+      // if we're really far behind just don't even bother catching up. this will happen when tabbing away for a while
+      if (now > nextUpdate + interval * 2) {
+        console.log('game update loop: skipping to present');
+        nextUpdate = now + interval;
+      }
     }
   }
 

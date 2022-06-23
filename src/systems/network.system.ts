@@ -200,23 +200,15 @@ export default class NetworkSystem implements ISystem {
   }
 
   private onReady() {
-    this.isConnectionReady = true;
-    this.game.resetSimulation();
-    // fixme
-    this.game.entities
-      .filter((e): e is ICharacterEntity => !!e.characterStateComp)
-      .forEach((e: ICharacterEntity) => {
-        if (this.network.isHost) {
-          e.isControlledByClient = e.characterStateComp.side === CharacterSide.P1;
-        } else {
-          e.isControlledByClient = e.characterStateComp.side === CharacterSide.P2;
-        }
-      });
     this.sendChat(`hello from ${this.network.clientId}`);
+    // wait for initial pong before starting match
     this.sendPing();
   }
 
   private onClose() {
+    this.roundtripLatency = -1;
+    this.lastRecordedRollbackTicks = 0;
+    this.lastRecordedRollbackMs = 0;
     this.isConnectionReady = false;
     this.states = [];
     this.clientInputs = [];
@@ -233,6 +225,8 @@ export default class NetworkSystem implements ISystem {
       this.onChat(data as string);
     } else if (type === MessageType.Input) {
       this.onInput(data as { inputComp: ICharacterInputComp; tick: number });
+    } else if (type === MessageType.Start) {
+      this.onStart();
     } else {
       console.warn('Unhandled message type:', type, data);
     }
@@ -284,7 +278,7 @@ export default class NetworkSystem implements ISystem {
       throw new Error(`no state recorded for tick ${data.tick - 1}. currentTick is ${currentTick}`);
     }
     // clean up old states that we won't need anymore
-    this.states = this.states.slice(stateIndex);
+    // this.states = this.states.slice(stateIndex);
 
     // 2. loadState() and set this.game.simulationTick = data.tick + 1
     this.game.rollback(state.tick, state.entities);
@@ -323,12 +317,41 @@ export default class NetworkSystem implements ISystem {
     this.lastRecordedRollbackMs = performance.now() - before;
   }
 
+  private onStart(): void {
+    this.isConnectionReady = true;
+    this.game.resetSimulation();
+    // fixme
+    this.game.entities
+      .filter((e): e is ICharacterEntity => !!e.characterStateComp)
+      .forEach((e: ICharacterEntity) => {
+        if (this.network.isHost) {
+          e.isControlledByClient = e.characterStateComp.side === CharacterSide.P1;
+        } else {
+          e.isControlledByClient = e.characterStateComp.side === CharacterSide.P2;
+        }
+      });
+  }
+
   private onPing(timestamp: number): void {
     this.network.send(MessageType.Pong, timestamp);
   }
 
   private onPong(timestamp: number): void {
+    const isInitialPong = this.roundtripLatency === -1;
     this.roundtripLatency = Date.now() - timestamp;
+
+    if (!isInitialPong) {
+      return;
+    }
+
+    // We want to start at the same time as the client. So send a Start command,
+    // and start the match at the time we think they should have received it.
+    if (this.network.isHost) {
+      this.sendStart();
+      setTimeout(() => {
+        this.onStart();
+      }, this.roundtripLatency / 2);
+    }
   }
 
   private sendChat(text: string): void {
@@ -341,5 +364,9 @@ export default class NetworkSystem implements ISystem {
 
   private sendPing(): void {
     this.network.send(MessageType.Ping, Date.now());
+  }
+
+  private sendStart(): void {
+    this.network.send(MessageType.Start, null);
   }
 }

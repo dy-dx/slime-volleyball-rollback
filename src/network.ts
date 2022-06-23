@@ -12,6 +12,7 @@ export const enum MessageType {
   Ping,
   Pong,
   Chat,
+  Start,
 }
 
 type OnMessageCallback = (type: MessageType, data: any) => void;
